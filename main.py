@@ -12,12 +12,15 @@ from dotenv import load_dotenv
 
 from downloader import MAX_TELEGRAM_FILE_SIZE, cleanup_downloads, download_media, is_supported_url
 
-load_dotenv()
+ENV_PATH = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
 
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("TOKEN") or os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN")
 
 if not TOKEN:
-    raise RuntimeError("TOKEN is not set. Please configure .env with your bot token.")
+    raise RuntimeError(
+        "TOKEN is not set. Configure .env next to main.py or set TOKEN/BOT_TOKEN/TELEGRAM_TOKEN."
+    )
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
