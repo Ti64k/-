@@ -11,7 +11,7 @@ from aiogram.types import FSInputFile, Message
 from aiogram.utils.media_group import MediaGroupBuilder
 from dotenv import load_dotenv
 
-from downloader import MAX_TELEGRAM_FILE_SIZE, cleanup_downloads, download_media, is_supported_url
+from downloader import DownloadError, MAX_TELEGRAM_FILE_SIZE, MediaDownloader, cleanup_downloads
 
 ENV_PATH = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=ENV_PATH)
@@ -27,6 +27,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 URL_REGEX = re.compile(r"https?://\S+")
+downloader = MediaDownloader(cookies_path=Path.cwd() / "cookies.txt")
 
 
 @dp.message(CommandStart())
@@ -50,16 +51,14 @@ async def download_handler(message: Message) -> None:
     url = await _extract_url(message)
     if not url:
         return
-    if not is_supported_url(url):
-        await message.answer("عذراً، هذا الرابط غير مدعوم حالياً. رجاءً أرسل رابطاً صالحاً.")
-        return
 
     status_msg = await message.answer("جاري المعالجة ⏳...")
     await bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
+    want_audio = bool(re.search(r"\b(audio|mp3)\b", message.text, re.IGNORECASE)) or "صوت" in message.text
     base_dir = Path(tempfile.mkdtemp(prefix="download_", dir=Path.cwd()))
     try:
-        result = await download_media(url, base_dir)
+        result = await downloader.download(url, base_dir, want_audio=want_audio)
         if result.total_size > MAX_TELEGRAM_FILE_SIZE:
             await status_msg.edit_text(
                 "عذراً، حجم الملف كبير جداً لإرساله عبر البوت (أكثر من 50MB)."
@@ -89,6 +88,8 @@ async def download_handler(message: Message) -> None:
         if result.audio_file:
             await message.answer_audio(FSInputFile(result.audio_file))
         await status_msg.delete()
+    except DownloadError as exc:
+        await status_msg.edit_text(exc.reason)
     except Exception:
         await status_msg.edit_text("حدث خطأ أثناء التحميل. حاول مرة أخرى لاحقاً.")
     finally:
