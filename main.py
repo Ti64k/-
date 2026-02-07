@@ -7,7 +7,8 @@ from pathlib import Path
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ChatAction
 from aiogram.filters import CommandStart
-from aiogram.types import FSInputFile, MediaGroupBuilder, Message
+from aiogram.types import FSInputFile, Message
+from aiogram.utils.media_group import MediaGroupBuilder
 from dotenv import load_dotenv
 
 from downloader import MAX_TELEGRAM_FILE_SIZE, cleanup_downloads, download_media, is_supported_url
