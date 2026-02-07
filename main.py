@@ -7,7 +7,7 @@ from pathlib import Path
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ChatAction
 from aiogram.filters import CommandStart
-from aiogram.types import FSInputFile, Message
+from aiogram.types import FSInputFile, MediaGroupBuilder, Message
 from dotenv import load_dotenv
 
 from downloader import MAX_TELEGRAM_FILE_SIZE, cleanup_downloads, download_media, is_supported_url
@@ -59,7 +59,7 @@ async def download_handler(message: Message) -> None:
     base_dir = Path(tempfile.mkdtemp(prefix="download_", dir=Path.cwd()))
     try:
         result = await download_media(url, base_dir)
-        if result.file_size > MAX_TELEGRAM_FILE_SIZE:
+        if result.total_size > MAX_TELEGRAM_FILE_SIZE:
             await status_msg.edit_text(
                 "عذراً، حجم الملف كبير جداً لإرساله عبر البوت (أكثر من 50MB)."
             )
@@ -71,11 +71,22 @@ async def download_handler(message: Message) -> None:
             action=ChatAction.UPLOAD_VIDEO if result.is_video else ChatAction.UPLOAD_PHOTO,
         )
 
-        media = FSInputFile(result.file_path)
-        if result.is_video:
-            await message.answer_video(media)
+        caption = result.caption or ""
+        if len(result.media_files) > 1 and not result.is_video:
+            builder = MediaGroupBuilder()
+            for index, file_path in enumerate(result.media_files):
+                input_file = FSInputFile(file_path)
+                builder.add_photo(media=input_file, caption=caption if index == 0 else None)
+            await message.answer_media_group(builder.build())
         else:
-            await message.answer_photo(media)
+            media = FSInputFile(result.media_files[0])
+            if result.is_video:
+                await message.answer_video(media, caption=caption)
+            else:
+                await message.answer_photo(media, caption=caption)
+
+        if result.audio_file:
+            await message.answer_audio(FSInputFile(result.audio_file))
         await status_msg.delete()
     except Exception:
         await status_msg.edit_text("حدث خطأ أثناء التحميل. حاول مرة أخرى لاحقاً.")
